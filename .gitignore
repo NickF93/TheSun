@@ -1,20 +1,9 @@
-# Prerequisites
-*.d
-
 # Compiled Object files
 *.slo
-*.lo
-*.o
-*.obj
 
 # Precompiled Headers
 *.gch
 *.pch
-
-# Compiled Dynamic libraries
-*.so
-*.dylib
-*.dll
 
 # Fortran module files
 *.mod
@@ -22,11 +11,116 @@
 
 # Compiled Static libraries
 *.lai
-*.la
 *.a
 *.lib
 
 # Executables
+*.app
+
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+*.egg
+*.egg-info/
+dist/
+build/
+*.pyo
+*.pyd
+*.whl
+.Python
+env/
+venv/
+ENV/
+.venv/
+pip-log.txt
+pip-delete-this-directory.txt
+.tox/
+.pytest_cache/
+nosetests.xml
+coverage.xml
+*.cover
+.hypothesis/
+.mypy_cache/
+.pyre/
+.dmypy.json
+.pytype/
+
+# Virtualenv
+.venv/
+env/
+ENV/
+env.bak/
+venv.bak/
+
+# Jupyter Notebooks
+.ipynb_checkpoints
+
+# PyCharm
+.idea/
+
+# VSCode
+.vscode/
+.history/
+*.code-workspace
+
+# C++
+*.o
+*.obj
+*.so
 *.exe
 *.out
-*.app
+*.class
+*.dll
+*.dylib
+*.log
+*.a
+*.d
+*.gcno
+*.gcda
+*.gcov
+*.pdb
+*.suo
+*.user
+*.aps
+*.ncb
+*.opt
+*.plg
+*.idb
+*.DS_Store
+*.dSYM/
+.vscode/
+.vs/
+tags
+TAGS
+
+# CMake
+CMakeFiles/
+CMakeCache.txt
+cmake_install.cmake
+Makefile
+CMakeLists.txt.user
+
+# NetBeans
+nbproject/private/
+build/
+dist/
+
+# EasyEDA
+*.jlb
+*.json.bak
+*.sch.bak
+*.pcb.bak
+*.EasyEDA
+
+# TensorFlow / PyTorch
+checkpoint/
+__pycache__/
+*.ckpt
+*.h5
+*.tflite
+.saved_model/
+*.pb
+logs/
+events.out.tfevents.*
