@@ -10,14 +10,14 @@
 #define NTC2                3
 
 #define LED_PWM_PIN         4
-#define REF_RES             10000.0
-#define NOM_RES             10000.0
-#define NOM_TMP             25.0
+#define REF_RES             10000.0f
+#define NOM_RES             10000.0f
+#define NOM_TMP             25.0f
 #define BETA                3950
-#define ADC_RES             1024.0
+#define ADC_RES             1023.0f
 #define NTC_BUFFER          100
-#define TO_KELVIN(__C__)    (((float) __C__) + 273.15)
-#define TO_CELSIUS(__K__)   (((float) __K__) - 273.15)
+#define TO_KELVIN(__C__)    ((static_cast<float>(__C__)) + 273.15f)
+#define TO_CELSIUS(__K__)   ((static_cast<float>(__K__)) - 273.15f)
 
 #define P0                  0
 #define P1                  100
@@ -165,7 +165,13 @@ float readTemperatureNTC(const int pin) {
   }
 
   // Calculate the resistance of the thermistor
-  const float resistance = REF_RES / (ADC_RES / adcValue - 1);
+  // Clamp adcValue to avoid division by zero and log domain errors
+  if (adcValue <= 0.0f) {
+    adcValue = 1.0f;
+  } else if (adcValue >= (ADC_RES - 1.0f)) {
+    adcValue = ADC_RES - 1.0f;
+  }
+  const float resistance = REF_RES / ((ADC_RES / adcValue) - 1);
 
   
   const float inverseKelvin = 1.0 / nominalTemperature + log(resistance / NOM_RES) / BETA;
@@ -247,9 +253,11 @@ void updateScreen(void) {
 
 void readTemperatures(void) {
   sensors_event_t humidity, temp;
-  aht.getEvent(&humidity, &temp);
-  tempC = static_cast<float>(temp.temperature);
-  humdP = static_cast<float>(humidity.relative_humidity);
+  const auto res{aht.getEvent(&humidity, &temp)};
+  if (res) {
+    tempC = static_cast<float>(temp.temperature);
+    humdP = static_cast<float>(humidity.relative_humidity);
+  }
 
 #ifdef NTC1
   ntc1_tmp = readTemperatureNTC(NTC1);
