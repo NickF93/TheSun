@@ -75,7 +75,6 @@ void setup() {
   digitalWrite(LED_PWM_PIN, HIGH);
 
   delay(500);
-  analogWrite(LED_PWM_PIN, 127);
   display.begin(&Adafruit128x64, I2C_ADDRESS);
   delay(100);
   display.setFont(System5x7);
@@ -99,6 +98,8 @@ void setup() {
   digitalWrite(LED_PWM_PIN, LOW);
 
   pwmValue = (mapPercentage(percentage) * 255) / 100;
+  // Program initial duty on TCA0 WO1 (PB5) directly to avoid analogWrite reconfiguring the timer
+  TCA0.SINGLE.CMP1 = (static_cast<uint16_t>(pwmValue) * TCA0.SINGLE.PER) / 255;
 }
 
 void loop() {
@@ -130,7 +131,7 @@ void loop() {
     updateScreen();
 
     // Set the PWM on pin 4
-    analogWrite(LED_PWM_PIN, pwmValue);
+    TCA0.SINGLE.CMP1 = (static_cast<uint16_t>(pwmValue) * TCA0.SINGLE.PER) / 255;
   }
 
   delay(50);
