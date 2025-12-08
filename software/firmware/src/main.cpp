@@ -9,15 +9,17 @@
 //#define NTC1                2
 #define NTC2                3
 
+#define FP16(__var__)       static_cast<float>(__var__)
+
 #define LED_PWM_PIN         4
-#define REF_RES             10000.0f
-#define NOM_RES             10000.0f
-#define NOM_TMP             25.0f
+#define REF_RES             FP16(10000.0f)
+#define NOM_RES             FP16(10000.0f)
+#define NOM_TMP             FP16(25.0f)
 #define BETA                3950
-#define ADC_RES             1023.0f
+#define ADC_RES             FP16(1023.0f)
 #define NTC_BUFFER          100
-#define TO_KELVIN(__C__)    ((static_cast<float>(__C__)) + 273.15f)
-#define TO_CELSIUS(__K__)   ((static_cast<float>(__K__)) - 273.15f)
+#define TO_KELVIN(__C__)    FP16((FP16(__C__)) + 273.15f)
+#define TO_CELSIUS(__K__)   FP16((FP16(__K__)) - 273.15f)
 
 #define P0                  0
 #define P1                  100
@@ -39,29 +41,29 @@ SSD1306AsciiWire display;
 Adafruit_AHTX0 aht;
 
 void configureTimer(void);
-float readTemperatureNTC(const int pin);
-int mapPercentage(int x);
-bool handleSwitch(int pin, int increment, unsigned long& lastTime, bool& lastState);
+[[nodiscard]] float readTemperatureNTC(const int pin);
+[[nodiscard]] uint8_t mapPercentage(int8_t x);
+[[nodiscard]] bool handleSwitch(int pin, int increment, uint32_t& lastTime, bool& lastState);
 void updateScreen(void);
 void readTemperatures(void);
 
 // Variables
-int percentage = P0;
-int mapped_percentage = MIN_P0;
-int pwmValue = (mapped_percentage * 255) / 100;
-float tempC = 0.0;
-float humdP = 0.0;
-float ntc1_tmp = 0.0;
-float ntc2_tmp = 0.0;
+int8_t percentage         = P0;
+uint8_t mapped_percentage = MIN_P0;
+uint8_t pwmValue          = (mapped_percentage * 255) / 100;
+float tempC               = FP16(0.0f);
+float humdP               = FP16(0.0f);
+float ntc1_tmp            = FP16(0.0f);
+float ntc2_tmp            = FP16(0.0f);
 
 // Last time markers
-unsigned long lastSwitchCheck = 0;
-unsigned long lastTempRead = 0;
-unsigned long lastScreenUpdate = 0;
+uint32_t lastSwitchCheck  = 0U;
+uint32_t lastTempRead     = 0U;
+uint32_t lastScreenUpdate = 0U;
 
 // Switch states and debounce times
 bool lastStateA = HIGH, lastStateB = HIGH, lastStateC = HIGH, lastStateD = HIGH;
-unsigned long lastDebounceTimeA = 0, lastDebounceTimeB = 0, lastDebounceTimeC = 0, lastDebounceTimeD = 0;
+uint32_t lastDebounceTimeA = 0, lastDebounceTimeB = 0, lastDebounceTimeC = 0, lastDebounceTimeD = 0;
 
 void setup() {
   delay(50);
@@ -75,6 +77,7 @@ void setup() {
   digitalWrite(LED_PWM_PIN, HIGH);
 
   delay(500);
+  analogWrite(LED_PWM_PIN, 127);
   display.begin(&Adafruit128x64, I2C_ADDRESS);
   delay(100);
   display.setFont(System5x7);
@@ -98,8 +101,6 @@ void setup() {
   digitalWrite(LED_PWM_PIN, LOW);
 
   pwmValue = (mapPercentage(percentage) * 255) / 100;
-  // Program initial duty on TCA0 WO1 (PB5) directly to avoid analogWrite reconfiguring the timer
-  TCA0.SINGLE.CMP1 = (static_cast<uint16_t>(pwmValue) * TCA0.SINGLE.PER) / 255;
 }
 
 void loop() {
@@ -131,7 +132,7 @@ void loop() {
     updateScreen();
 
     // Set the PWM on pin 4
-    TCA0.SINGLE.CMP1 = (static_cast<uint16_t>(pwmValue) * TCA0.SINGLE.PER) / 255;
+    analogWrite(LED_PWM_PIN, pwmValue);
   }
 
   delay(50);
@@ -160,7 +161,7 @@ float readTemperatureNTC(const int pin) {
 
   // Calculate the average ADC value using incremental mean
   float adcValue = 0.0;
-  for (int i = 0; i < NTC_BUFFER; ++i) {
+  for (uint8_t i = 0; i < NTC_BUFFER; ++i) {
       const int _adcValue = analogRead(pin);
       adcValue += (static_cast<float>(_adcValue) - adcValue) / ((float) i + 1.0);
   }
@@ -181,7 +182,7 @@ float readTemperatureNTC(const int pin) {
   return TO_CELSIUS(kelvin);
 }
 
-int mapPercentage(int x) {
+uint8_t mapPercentage(int8_t x) {
     // Constrain x to the input range [P0, P1]
     x = constrain(x, min(P0, P1), max(P0, P1));
 
@@ -190,11 +191,11 @@ int mapPercentage(int x) {
 
     // Round the result and constrain it to the output range [MIN_P0, MAX_P1]
     int roundedY = round(y);
-    return constrain(roundedY, MIN_P0, MAX_P1);
+    return static_cast<uint8_t>(constrain(roundedY, MIN_P0, MAX_P1));
 }
 
 // Handle a switch press with debouncing, returns true if updated
-bool handleSwitch(int pin, int increment, unsigned long& lastTime, bool& lastState) {
+bool handleSwitch(int pin, int increment, uint32_t& lastTime, bool& lastState) {
   bool currentState = digitalRead(pin);
 
   // If the state has changed, check the debounce
@@ -254,8 +255,7 @@ void updateScreen(void) {
 
 void readTemperatures(void) {
   sensors_event_t humidity, temp;
-  const auto res{aht.getEvent(&humidity, &temp)};
-  if (res) {
+  if (aht.getEvent(&humidity, &temp)) {
     tempC = static_cast<float>(temp.temperature);
     humdP = static_cast<float>(humidity.relative_humidity);
   }
