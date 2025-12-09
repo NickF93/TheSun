@@ -1,0 +1,70 @@
+CompileFlags:
+  Add:
+    # C headers from the AVR toolchain
+    - -I
+    - /home/niccolo/.platformio/packages/toolchain-atmelavr/avr/include
+
+    # Core Arduino / megaTinyCore
+    - -I
+    - /home/niccolo/.platformio/packages/framework-arduino-megaavr-megatinycore/cores/megatinycore
+    - -I
+    - /home/niccolo/.platformio/packages/framework-arduino-megaavr-megatinycore/cores/megatinycore/api/deprecated
+    - -I
+    - /home/niccolo/.platformio/packages/framework-arduino-megaavr-megatinycore/variants/txy6
+
+    # Project include / src
+    - -I
+    - /home/niccolo/PRGM/1-git-prj/github/TheSun/software/firmware/include
+    - -I
+    - /home/niccolo/PRGM/1-git-prj/github/TheSun/software/firmware/src
+
+    # PlatformIO libdeps
+    - -I
+    - "/home/niccolo/PRGM/1-git-prj/github/TheSun/software/firmware/.pio/libdeps/thesun_attiny1616/Adafruit AHTX0"
+    - -I
+    - "/home/niccolo/PRGM/1-git-prj/github/TheSun/software/firmware/.pio/libdeps/thesun_attiny1616/Adafruit Unified Sensor"
+    - -I
+    - "/home/niccolo/PRGM/1-git-prj/github/TheSun/software/firmware/.pio/libdeps/thesun_attiny1616/Adafruit BusIO"
+    - -I
+    - "/home/niccolo/PRGM/1-git-prj/github/TheSun/software/firmware/.pio/libdeps/thesun_attiny1616/SSD1306Ascii/src"
+    - -I
+    - "/home/niccolo/PRGM/1-git-prj/github/TheSun/software/firmware/.pio/libdeps/thesun_attiny1616/Adafruit GFX Library"
+    - -I
+    - "/home/niccolo/PRGM/1-git-prj/github/TheSun/software/firmware/.pio/libdeps/thesun_attiny1616/Adafruit SH110X"
+
+    # megaTinyCore bundled libs
+    - -I
+    - /home/niccolo/.platformio/packages/framework-arduino-megaavr-megatinycore/libraries/SPI/src
+    - -I
+    - /home/niccolo/.platformio/packages/framework-arduino-megaavr-megatinycore/libraries/Wire/src
+    - -I
+    - /home/niccolo/.platformio/packages/framework-arduino-megaavr-megatinycore/libraries/Comparator/src
+    - -I
+    - /home/niccolo/.platformio/packages/framework-arduino-megaavr-megatinycore/libraries/EEPROM/src
+    - -I
+    - /home/niccolo/.platformio/packages/framework-arduino-megaavr-megatinycore/libraries/Event/src
+    - -I
+    - /home/niccolo/.platformio/packages/framework-arduino-megaavr-megatinycore/libraries/Logic/src
+    - -I
+    - /home/niccolo/.platformio/packages/framework-arduino-megaavr-megatinycore/libraries/Optiboot_flasher/src
+    - -I
+    - /home/niccolo/.platformio/packages/framework-arduino-megaavr-megatinycore/libraries/SD/src
+    - -I
+    - /home/niccolo/.platformio/packages/framework-arduino-megaavr-megatinycore/libraries/Servo/src
+    - -I
+    - /home/niccolo/.platformio/packages/framework-arduino-megaavr-megatinycore/libraries/Servo_megaTinyCore/src
+    - -I
+    - /home/niccolo/.platformio/packages/framework-arduino-megaavr-megatinycore/libraries/SoftwareSerial/src
+    - -I
+    - /home/niccolo/.platformio/packages/framework-arduino-megaavr-megatinycore/libraries/USERSIG/src
+    - -I
+    - /home/niccolo/.platformio/packages/framework-arduino-megaavr-megatinycore/libraries/megaTinyCore/src
+    - -I
+    - /home/niccolo/.platformio/packages/framework-arduino-megaavr-megatinycore/libraries/tinyNeoPixel
+    - -I
+    - /home/niccolo/.platformio/packages/framework-arduino-megaavr-megatinycore/libraries/tinyNeoPixel_Static
+
+  Remove:
+    - -fstrict-volatile-bitfields
+    - -fno-threadsafe-statics
+    - -fno-tree-switch-conversion

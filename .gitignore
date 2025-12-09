@@ -61,7 +61,7 @@ venv.bak/
 .idea/
 
 # VSCode
-.vscode/
+.cache/
 .history/
 *.code-workspace
 
@@ -90,7 +90,6 @@ venv.bak/
 *.idb
 *.DS_Store
 *.dSYM/
-.vscode/
 .vs/
 tags
 TAGS
