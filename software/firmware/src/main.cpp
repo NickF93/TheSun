@@ -1,23 +1,40 @@
+/**
+ * @file main.cpp
+ * @brief ATtiny1616 firmware for TheSun lamp controller.
+ *
+ * Responsibilities:
+ *  - Drive an LED on PB5 (Arduino pin 4) with PWM using TCA0 WO2.
+ *  - Read an AHT20 temperature/humidity sensor over I2C.
+ *  - Optionally read one or two NTC thermistors on analog inputs.
+ *  - Handle four push-buttons with debounce and percentage steps.
+ *  - Present status on a 128x64 SSD1306 OLED.
+ *
+ * Notes:
+ *  - takeOverTCA0() is called; TCA0 is removed from core control. Ensure
+ *    millis/timebase does not depend on TCA0 (prefer TCB/RTC in core opts).
+ *  - PWM routing to PB5 depends on build flag -DTCA_PORTMUX=PORTMUX_TCA02_bm.
+ */
+
 #include <Arduino.h>
 #include <Wire.h>
 #include <SSD1306Ascii.h>
 #include <SSD1306AsciiWire.h>
 #include <Adafruit_AHTX0.h>
 
-#define I2C_ADDRESS         0x3C
+#define I2C_ADDRESS         0x3C  ///< SSD1306 I2C address
 
 //#define NTC1                2
 #define NTC2                3
 
 #define FP16(__var__)       static_cast<float>(__var__)
 
-#define LED_PWM_PIN         4
-#define REF_RES             FP16(10000.0f)
-#define NOM_RES             FP16(10000.0f)
-#define NOM_TMP             FP16(25.0f)
-#define BETA                3950
-#define ADC_RES             FP16(1023.0f)
-#define NTC_BUFFER          100
+#define LED_PWM_PIN         4              ///< Arduino pin for LED (PB5 / WO2)
+#define REF_RES             FP16(10000.0f) ///< Series resistor for NTC (ohms)
+#define NOM_RES             FP16(10000.0f) ///< NTC nominal resistance at 25C
+#define NOM_TMP             FP16(25.0f)    ///< NTC nominal temperature (C)
+#define BETA                3950           ///< NTC beta coefficient
+#define ADC_RES             FP16(1023.0f)  ///< 10-bit ADC max count
+#define NTC_BUFFER          100            ///< Samples to average per NTC read
 #define TO_KELVIN(__C__)    FP16((FP16(__C__)) + 273.15f)
 #define TO_CELSIUS(__K__)   FP16((FP16(__K__)) - 273.15f)
 
@@ -33,19 +50,26 @@
 #define SWITCH_D_PIN        13 // PC3
 
 // Timing constants
-#define DEBOUNCE_DELAY      50
-#define TEMP_READ_DELAY     5000
-#define SCREEN_UPDATE_DELAY 5000
+#define DEBOUNCE_DELAY      50    ///< ms between switch debouncing checks
+#define TEMP_READ_DELAY     5000  ///< ms between sensor reads
+#define SCREEN_UPDATE_DELAY 5000  ///< ms between OLED updates (unless forced)
 
 SSD1306AsciiWire display;
 Adafruit_AHTX0 aht;
 
+/** Claim and configure TCA0 for single-slope PWM on WO2 (PB5). */
 void configureTimer(void);
+/** Read NTC temperature (Celsius) using a Steinhart–Hart approximation. */
 [[nodiscard]] float readTemperatureNTC(const int pin);
+/** Map user percentage [P0..P1] to output clamp [MIN_P0..MAX_P1]. */
 [[nodiscard]] uint8_t mapPercentage(int8_t x);
+/** Debounce and handle a switch; updates percentage when pressed. */
 [[nodiscard]] bool handleSwitch(int pin, int increment, uint32_t& lastTime, bool& lastState);
+/** Refresh the OLED contents. */
 void updateScreen(void);
+/** Read AHT20 and optional NTC sensors. */
 void readTemperatures(void);
+/** Write duty (0–255) to TCA0 WO2. */
 void setLedPwm(const uint8_t duty);
 
 // Variables
@@ -66,6 +90,16 @@ uint32_t lastScreenUpdate = 0U;
 bool lastStateA = HIGH, lastStateB = HIGH, lastStateC = HIGH, lastStateD = HIGH;
 uint32_t lastDebounceTimeA = 0, lastDebounceTimeB = 0, lastDebounceTimeC = 0, lastDebounceTimeD = 0;
 
+/**
+ * @brief Initialize MCU peripherals, display, sensors, and PWM.
+ *
+ * Sequence:
+ *  - Bring up I2C and GPIO.
+ *  - Init OLED and show splash.
+ *  - Take over and configure TCA0 for PWM on PB5.
+ *  - Init AHT20 sensor (blocks forever on failure).
+ *  - Program initial PWM duty based on mapped percentage.
+ */
 void setup() {
   delay(50);
   Wire.begin();
@@ -106,6 +140,16 @@ void setup() {
   setLedPwm(pwmValue);
 }
 
+/**
+ * @brief Cooperative task loop.
+ *
+ * Tasks:
+ *  - Debounce/process buttons every DEBOUNCE_DELAY ms.
+ *  - Constrain/map percentage to PWM duty.
+ *  - Read sensors every TEMP_READ_DELAY ms.
+ *  - Refresh OLED every SCREEN_UPDATE_DELAY ms or when data changed.
+ *  - Apply PWM to LED via TCA0.
+ */
 void loop() {
   bool updated = false;
 
@@ -141,6 +185,11 @@ void loop() {
   delay(50);
 }
 
+/**
+ * @brief Claim and configure TCA0 for single-slope PWM on WO2 (PB5).
+ * @details Calls takeOverTCA0(), sets PER for ~250 Hz at 16 MHz / 64 prescale,
+ *          enables CMP2, and leaves PORTMUX routing to build flags.
+ */
 void configureTimer(void) {
   // We explicitly take over TCA0 from megaTinyCore.
   // This:
@@ -151,10 +200,8 @@ void configureTimer(void) {
 
   // At this point TCA0 is in SINGLE mode, counter = 0, prescaler = 1, disabled.
   // PORTMUX for TCA0 output pins is left as configured by the core.
-  // In your PlatformIO .ini you already set:
-  //   -DTCA_PORTMUX=PORTMUX_TCA02_bm
-  //   -DPWMmux=I6_A
-  // so the core routes TCA0 outputs to the same pins you used in the Arduino IDE.
+  // In platformio.ini you set: -DTCA_PORTMUX=PORTMUX_TCA02_bm
+  // so WO2 is routed to PB5 (Arduino pin 4).
 
   // We want single-slope PWM on WO2 (PB5 = Arduino pin 4).
   // -> enable compare channel 2 (CMP2EN) and select single-slope mode.
@@ -177,8 +224,10 @@ void configureTimer(void) {
                     | TCA_SINGLE_ENABLE_bm;       // enable TCA0
 }
 
-// Map an 8-bit value [0..255] to the TCA0 PER range [0..PER]
-// and update CMP2 (WO2 => PB5 => Arduino pin 4).
+/**
+ * @brief Map duty [0..255] to TCA0 PER range and update CMP2 (WO2 => PB5).
+ * @param duty Duty cycle 0..255 (0%..100%).
+ */
 void setLedPwm(const uint8_t duty) {
   // Read PER once (16-bit)
   const uint16_t per = TCA0.SINGLE.PER;
@@ -194,7 +243,13 @@ void setLedPwm(const uint8_t duty) {
   TCA0.SINGLE.CMP2 = cmp;
 }
 
-// Function to read temperature from an NTC thermistor
+/**
+ * @brief Read temperature from an NTC thermistor.
+ * @param pin Analog pin the NTC divider is connected to.
+ * @return Temperature in Celsius (float).
+ * @details Uses incremental averaging over NTC_BUFFER samples and the
+ *          simplified Steinhart–Hart equation with clamp to avoid NaNs.
+ */
 float readTemperatureNTC(const int pin) {
   const float nominalTemperature = TO_KELVIN(NOM_TMP); // To Kelvin
 
@@ -221,6 +276,11 @@ float readTemperatureNTC(const int pin) {
   return TO_CELSIUS(kelvin);
 }
 
+/**
+ * @brief Map user percentage [P0..P1] to bounded output [MIN_P0..MAX_P1].
+ * @details Provides a nonlinear clamp that limits minimum and maximum
+ *          output regardless of user input extremes.
+ */
 uint8_t mapPercentage(int8_t x) {
     // Constrain x to the input range [P0, P1]
     x = constrain(x, min(P0, P1), max(P0, P1));
@@ -234,6 +294,14 @@ uint8_t mapPercentage(int8_t x) {
 }
 
 // Handle a switch press with debouncing, returns true if updated
+/**
+ * @brief Debounce a switch and adjust percentage on new press.
+ * @param pin Digital input pin.
+ * @param increment Amount to add/subtract when pressed.
+ * @param lastTime Mutable reference to debounce timer (ms).
+ * @param lastState Mutable reference to last pin state.
+ * @return true if percentage updated.
+ */
 bool handleSwitch(int pin, int increment, uint32_t& lastTime, bool& lastState) {
   bool currentState = digitalRead(pin);
 
@@ -261,6 +329,7 @@ bool handleSwitch(int pin, int increment, uint32_t& lastTime, bool& lastState) {
   return false;
 }
 
+/** @brief Refresh all OLED lines with current readings and PWM state. */
 void updateScreen(void) {
   display.setCursor(0, 0);
   display.clear();
@@ -292,6 +361,10 @@ void updateScreen(void) {
 #endif
 }
 
+/**
+ * @brief Read AHT20 (and NTCs if enabled) into global state.
+ * @details Keeps last good values if AHT20 read fails.
+ */
 void readTemperatures(void) {
   sensors_event_t humidity, temp;
   if (aht.getEvent(&humidity, &temp)) {
