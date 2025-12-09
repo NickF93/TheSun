@@ -90,7 +90,6 @@ venv.bak/
 *.idb
 *.DS_Store
 *.dSYM/
-.vscode/
 .vs/
 tags
 TAGS

@@ -1,0 +1,11 @@
+{
+  // Let clangd handle IntelliSense, disable ms-vscode.cpptools engine
+  "C_Cpp.intelliSenseEngine": "disabled",
+
+  // Pass arguments to clangd
+  "clangd.arguments": [
+    "--compile-commands-dir=${workspaceFolder}",
+    // opzionale ma utile: permetti a clangd di interrogare il toolchain gcc usato da PlatformIO
+    "--query-driver=/home/niccolo/.platformio/packages/toolchain-atmelavr/bin/avr-g++"
+  ]
+}
