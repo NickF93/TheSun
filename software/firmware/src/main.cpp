@@ -23,7 +23,7 @@
 
 #define P0                  0
 #define P1                  100
-#define MIN_P0              5
+#define MIN_P0              2
 #define MAX_P1              50
 
 // Define switch pins
@@ -46,6 +46,7 @@ void configureTimer(void);
 [[nodiscard]] bool handleSwitch(int pin, int increment, uint32_t& lastTime, bool& lastState);
 void updateScreen(void);
 void readTemperatures(void);
+void setLedPwm(const uint8_t duty);
 
 // Variables
 int8_t percentage         = P0;
@@ -77,7 +78,7 @@ void setup() {
   digitalWrite(LED_PWM_PIN, HIGH);
 
   delay(500);
-  analogWrite(LED_PWM_PIN, 127);
+  digitalWrite(LED_PWM_PIN, LOW);
   display.begin(&Adafruit128x64, I2C_ADDRESS);
   delay(100);
   display.setFont(System5x7);
@@ -90,6 +91,7 @@ void setup() {
   delay(1000);
   
   configureTimer();
+  digitalWrite(LED_PWM_PIN, LOW);
 
   if (!aht.begin()) {
     display.println(F("Error init AHT20"));
@@ -101,6 +103,7 @@ void setup() {
   digitalWrite(LED_PWM_PIN, LOW);
 
   pwmValue = (mapPercentage(percentage) * 255) / 100;
+  setLedPwm(pwmValue);
 }
 
 void loop() {
@@ -132,27 +135,63 @@ void loop() {
     updateScreen();
 
     // Set the PWM on pin 4
-    analogWrite(LED_PWM_PIN, pwmValue);
+    setLedPwm(pwmValue);
   }
 
   delay(50);
 }
 
 void configureTimer(void) {
-  // Temporarily disable the timer
-  TCA0.SINGLE.CTRLA &= ~TCA_SINGLE_ENABLE_bm;
+  // We explicitly take over TCA0 from megaTinyCore.
+  // This:
+  //  1. Resets TCA0 to power-on defaults.
+  //  2. Tells the core not to touch TCA0 anymore
+  //     (no analogWrite()/digitalWrite() side effects on TCA pins).
+  takeOverTCA0();
 
-  // Configure the prescaler (e.g., divide by 64)
-  TCA0.SINGLE.CTRLA = TCA_SINGLE_CLKSEL_DIV64_gc;
+  // At this point TCA0 is in SINGLE mode, counter = 0, prescaler = 1, disabled.
+  // PORTMUX for TCA0 output pins is left as configured by the core.
+  // In your PlatformIO .ini you already set:
+  //   -DTCA_PORTMUX=PORTMUX_TCA02_bm
+  //   -DPWMmux=I6_A
+  // so the core routes TCA0 outputs to the same pins you used in the Arduino IDE.
 
-  // Set the TOP value (lower frequency)
-  TCA0.SINGLE.PER = 0x03E8; // TOP = 1000 -> f_PWM = (16 MHz) / (64 * (1000 + 1)) = ~250 Hz
+  // We want single-slope PWM on WO2 (PB5 = Arduino pin 4).
+  // -> enable compare channel 2 (CMP2EN) and select single-slope mode.
+  TCA0.SINGLE.CTRLB = TCA_SINGLE_WGMODE_SINGLESLOPE_gc  // single-slope PWM
+                    | TCA_SINGLE_CMP2EN_bm;             // enable WO2 output
 
-  // Enable PWM output on pin PB5 (WO1)
-  TCA0.SINGLE.CTRLB = TCA_SINGLE_WGMODE_SINGLESLOPE_gc | TCA_SINGLE_CMP1EN_bm;
+  // Set TOP value (PER). With:
+  //   F_CPU = 16 MHz
+  //   prescaler = 64
+  //   PER = 1000
+  // frequency = F_CPU / (prescaler * (PER + 1))
+  //           ≈ 16e6 / (64 * 1001) ≈ 249.6 Hz
+  TCA0.SINGLE.PER = 1000U;
 
-  // Re-enable the timer
-  TCA0.SINGLE.CTRLA |= TCA_SINGLE_ENABLE_bm;
+  // Start with 0 duty until you set pwmValue explicitly.
+  TCA0.SINGLE.CMP2 = 0U;
+
+  // Finally, set prescaler = 64 and enable the timer.
+  TCA0.SINGLE.CTRLA = TCA_SINGLE_CLKSEL_DIV64_gc  // clock = F_CPU / 64
+                    | TCA_SINGLE_ENABLE_bm;       // enable TCA0
+}
+
+// Map an 8-bit value [0..255] to the TCA0 PER range [0..PER]
+// and update CMP2 (WO2 => PB5 => Arduino pin 4).
+void setLedPwm(const uint8_t duty) {
+  // Read PER once (16-bit)
+  const uint16_t per = TCA0.SINGLE.PER;
+
+  // 16x16 multiplication would overflow; promote to 32-bit.
+  // We map duty in [0..255] to [0..per].
+  uint32_t tmp = static_cast<uint32_t>(duty) * static_cast<uint32_t>(per);
+
+  // Integer division; result in [0..per].
+  uint16_t cmp = static_cast<uint16_t>(tmp / 255U);
+
+  // Write compare register for channel 2 (WO2).
+  TCA0.SINGLE.CMP2 = cmp;
 }
 
 // Function to read temperature from an NTC thermistor
