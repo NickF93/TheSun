@@ -181,8 +181,6 @@ void loop() {
     // Set the PWM on pin 4
     setLedPwm(pwmValue);
   }
-
-  delay(50);
 }
 
 /**
